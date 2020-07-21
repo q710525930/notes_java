@@ -681,3 +681,5 @@ MySQL数据库复制（replication）的原理就是异步实时地将二进制�
 - 高可用性和故障转移。通过复制建立的从服务器有助于故障转移，减少故障的停机时间和恢复时间。
 
 [《高性能MySQL》&《MySQL技术内幕 InnoDB存储引擎》笔记](https://www.jianshu.com/p/bd8675e5c7b2)
+
+111
