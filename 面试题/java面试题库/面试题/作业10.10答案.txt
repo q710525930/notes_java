@@ -1,0 +1,32 @@
+1.	css和div 开发的优势？
+优点：1）div+css，这个布局中，div承载的是内容，而css承载的是样式。内容和样式的分离。
+2）搜索引擎亲和力（快速找到需要的数据，而不是像在table中一层层的查找） 重构页面的方便性(换皮肤如blog)
+   缺点：开发效率低
+2.	谈谈页面间的参数传递有哪些方式 ？
+通过请求作用域request,session,通过内部转发携带参数,在jsp页面中使用<jsp:forward /> <jsp:param />
+3.	hidden表单域有什么作用？
+    用来记录一些用户不需要关心,但你程序需要关心的东西比如某条数据的主键值. 
+暂时隐藏某个表单字段可以让你的表单变的简洁
+4.	jsp有哪些内置对象?
+Page,request,session,application,exception,config,pageContext,out,
+5.	request的作用有哪些？
+获取客户端传递的参数值
+获取客户端请求头信息
+获取会话
+获取转发对象
+获取servletContext对象
+6.	session有什么作用。
+Session对象类似于一个容器，可以存放任何对象，以供不同页面间共享数据
+Session是记录客户端的状态信息，它是针对http协议的无状态连接的特性而提供的解决方案。
+7.	 application有什么作用。
+取得保存的一些全局性的对象信息。
+8.	在jsp中怎样操作page作用域
+特定于 JSP 的一个类型，代表当前的 JSP 页面。pageContext.setAttribute();
+9.	jsp有哪些动作?作用分别是什么?
+<jsp:include /> <jsp:forward /> <jsp:usebean /> <jsp:setProperty /> <jsp:getProperty />
+<jsp:param /> 
+10.	java servlet api中forward() 与redirect()的区别？
+1.	forward客户端请求服务器一次，redirect请求服务器两次
+2.	forward由request对象发出，而redirect由response对象发起
+3.      对于页面跳转来说，forward请求在URL地址栏会显示SERVLET的地址，而redirect显示的是重定向后页面的地址
+4。     由于redirect()是2次请求，因此不能使用request作用域来保存信息
