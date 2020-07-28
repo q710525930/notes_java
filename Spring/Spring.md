@@ -709,3 +709,60 @@ Spring 中配置 DataSource 的时候，DataSource 可能是不同的数据库�
 3. 处理器适配 **HandlerAdapter**:调用处理器相对应的处理方法，返回ViewAndModel
 4. 视图解析器 **ViewResolver**
 5. 视图的渲染 **View**
+
+## Mybatis
+
+### sql与mapper如何对应
+
+以xml为例，调用sql之前需要通过`SqlSessionFactoryBuilder`工厂创建`sqlsession`，然后调用`getMapper`方法
+
+```java
+ActivityCzMapper am = sqlSession.getMapper(ActivityCzMapper.class);
+        ActivityCz activityCz = am.selectByPrimaryKey(1);
+
+//------------------------------------------------------------------------------
+public <T> T getMapper(Class<T> type) {
+        return this.configuration.getMapper(type, this);
+    }
+
+//------------------------------------------------------------------------------
+public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
+        return this.mapperRegistry.getMapper(type, sqlSession);
+    }
+
+//------------------------------------------------------------------------------
+public <T> T getMapper(Class<T> type, SqlSession sqlSession) {
+        MapperProxyFactory<T> mapperProxyFactory = (MapperProxyFactory)this.knownMappers.get(type);
+        if(mapperProxyFactory == null) {
+            throw new BindingException("Type " + type + " is not known to the MapperRegistry.");
+        } else {
+            try {
+                return mapperProxyFactory.newInstance(sqlSession);
+            } catch (Exception var5) {
+                throw new BindingException("Error getting mapper instance. Cause: " + var5, var5);
+            }
+        }
+    }
+
+```
+
+可以看到return的是一个newInstance，说明利用了动态代理，这个`mapperProxyFactory`是从`knownMappers`这个map中get到的，key为我们的接口class对象。跟踪这个newInstance方法
+
+```java
+//实现了InvocationHandler，说明利用了JDK的动态代理，把三个参数初始化的MapperProxy代理类传到下一个重载方法。
+public class MapperProxy<T> implements InvocationHandler, Serializable{}
+
+private Map<Method, MapperMethod> methodCache = new ConcurrentHashMap();  
+
+public T newInstance(SqlSession sqlSession) {
+        MapperProxy<T> mapperProxy = new MapperProxy(sqlSession, this.mapperInterface, this.methodCache);
+        return this.newInstance(mapperProxy);
+    }
+
+//-------------------------------------------------------------------------
+protected T newInstance(MapperProxy<T> mapperProxy) {
+        return Proxy.newProxyInstance(this.mapperInterface.getClassLoader(), new Class[]{this.mapperInterface}, mapperProxy);
+ }
+```
+
+可以得知利用jdk的动态代理模式Proxy.newProxyInstance方法，里面的三个参数显而易见，对于第三个参数mapperProxy就是 实现了InvocationHandler接口的MapperProxy类。

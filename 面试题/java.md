@@ -118,17 +118,43 @@ HashMap中，如果要比较key是否相等，要同时使用这两个函数！�
 
 #### 反射
 
-反射就是指程序在运行时动态获取到类的基本信息方法，java中获取方法区中类信心的方法有三种：
+反射就是指程序在运行时动态获取到类的基本信息方法，可以**提高程序的灵活性，屏蔽实现细节**。
+
+要通过反射获取一个类或者调用类方法，首先要获取到类的class对象，java中获取方法区中类信息的方法有三种：
 
 - 类名.class
 - getClass 方法
 - forName 方法
 
+获取到类信息后，创建反射类对象由两种方式：
 
+- 通过 Class 对象的 newInstance() 方法。
 
+  - ```java
+    Class clz = Apple.class;
+    Apple apple = (Apple)clz.newInstance();
+    ```
 
+- 通过 Constructor 对象的 newInstance() 方法
 
+  - ```java
+    Class clz = Apple.class;
+    Constructor constructor = clz.getConstructor();
+    Apple apple = (Apple)constructor.newInstance();
+    ```
 
+  - 通过 Constructor 对象创建类对象可以选择特定构造方法，而通过 Class 对象则只能使用默认的无参数构造方法
+
+还可以通过class对象直接获取对象类属性、方法
+
+```java
+Class clz = Apple.class;
+Field[] fields = clz.getFields();
+```
+
+反射JDK源码流程
+
+![img](https://img2018.cnblogs.com/blog/595137/201903/595137-20190324000247330-1279629878.png)
 
 ## 集合
 
@@ -231,7 +257,7 @@ java为数据结构中的映射定义了一个接口java.util.Map;它有四个�
 
  **HashMap 构造方法中 initialCapacity（初始容量）、loadFactor（加载因子）的理解？**
 
-nitialCapacity 初始容量代表了哈希表中桶的初始数量，但是diamante会自动通过一串二进制右移的操作保证它变为2的幂。loadFactor 加载因子决定了何时开启resize。
+nitialCapacity 初始容量代表了哈希表中桶的初始数量，但是diamante会自动通过一串二进制右移的操作保证它变为2的幂。loadFactor 加载因子决定了何时开启resize（默认0.75，因为参考了泊松分布）。
 
 **扩容机制**
 
@@ -239,7 +265,106 @@ nitialCapacity 初始容量代表了哈希表中桶的初始数量，但是diama
 
 而在 JDK 1.8 中 HashMap 的扩容操作就显得更加的骚气了，由于扩容数组的长度是 2 倍关系，所以对于假设初始 tableSize =4 要扩容到 8 来说就是 0100 到 1000 的变化（左移一位就是 2 倍），在扩容中只用判断原来的 hash 值与左移动的一位按位与操作是 0 或 1 就行，0 的话索引就不变，1 的话索引变成原索引加上扩容前数组。
 
+#### hash冲突算法
 
+1. 开放定址法：如果冲突，则按顺序往后找，缺点是查找麻烦，删除元素时不能直接删除会影响到其他节点逻辑，容易产生堆积
+2. 再hash：冲突时用另一个hash计算函数再次计算hash，不容易产生堆积，但是会增加计算时间
+3. 链地址：冲突时在冲突位置构造链表，将冲突元素放到链表上，缺点是需要额外存储空间
+
+手写hashmap：
+
+```java
+public class MyHashMap {
+ 
+    public static void main(String[] args) {
+        MyHashMap hm = new MyHashMap();
+        hm.put(1, 1);
+        hm.put(2, 2);
+        System.out.println(hm.get(1)); // 1
+        hm.remove(1);
+        System.out.println(hm.get(1)); // -1
+    }
+ 
+    private final int N = 100000; // 静态数组长度100000
+ 
+    private Node[] arr;
+ 
+    public MyHashMap() {
+        arr = new Node[N];
+    }
+ 
+    public void put(int key, int value) {
+        int idx = hash(key);
+ 
+        if (arr[idx] == null) { // 没有发生哈希碰撞
+            arr[idx] = new Node(-1, -1); // 虚拟头节点
+            arr[idx].next = new Node(key, value); // 实际头节点
+        } else {
+            Node prev = arr[idx]; // 从虚拟头开始遍历
+ 
+            while (prev.next != null) {
+                if (prev.next.key == key) {
+                    prev.next.value = value; // 直接覆盖value
+                    return;
+                }
+                prev = prev.next;
+            }
+            prev.next = new Node(key, value); // 没有键则插入节点
+        }
+    }
+ 
+    public int get(int key) {
+        int idx = hash(key);
+ 
+        if (arr[idx] != null) {
+            Node cur = arr[idx].next; // 从实际头节点开始寻找
+ 
+            while (cur != null) {
+                if (cur.key == key) {
+                    return cur.value; // 找到
+                }
+                cur = cur.next;
+            }
+        }
+        return -1; // 没有找到
+    }
+ 
+    public void remove(int key) {
+        int idx = hash(key);
+ 
+        if (arr[idx] != null) {
+            Node prev = arr[idx];
+ 
+            while (prev.next != null) {
+                if (prev.next.key == key) { // 删除节点
+                    Node delNode = prev.next;
+                    prev.next = delNode.next;
+                    delNode.next = null;
+                    return;
+                }
+                prev = prev.next;
+            }
+        }
+    }
+ 
+    // 哈希函数
+    private int hash(int key) {
+        return key % N;
+    }
+ 
+    // 链表节点
+    private class Node {
+        int key;
+        int value;
+        Node next;
+ 
+        Node(int key, int value) {
+            this.key = key;
+            this.value = value;
+        }
+    }
+}
+```
 
 
 
