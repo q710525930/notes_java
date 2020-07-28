@@ -1,6 +1,0 @@
-1.HttpservletResponse的sendError方法的作用
-2.什么情况下使用URL重写
-3.doGet和doPost在什么时候调用？区别？
-4.response对象的作用
-5.jsp中import指令的作用
-
