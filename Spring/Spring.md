@@ -714,6 +714,8 @@ Spring 中配置 DataSource 的时候，DataSource 可能是不同的数据库�
 
 ### sql与mapper如何对应
 
+**mybatis会读取xml文件, 并获取xml和interface的映射, 将需要执行的sql绑定在interface上, 并构造代理注入spring, 在调用时通过反射获取当前调用的interface以及method, 然后在注册好的映射map中获取具体执行的sql并执行**
+
 以xml为例，调用sql之前需要通过`SqlSessionFactoryBuilder`工厂创建`sqlsession`，然后调用`getMapper`方法
 
 ```java
