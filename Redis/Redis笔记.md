@@ -7,103 +7,9 @@ typora-copy-images-to: pic
 
 ## 数据结构与对象
 
-### 动态字符串
+### 对象（数据类型）
 
-Redis使用自己的SDS类类型来存储字符串：</br>
-![avatar](pic/SDS结构图.jpg) </br>
-
-与C字符串优点：
-
-1. 相比于C字符串（`O(n)`）更方便的获取字符串长度（`O(1)`）
-2. 杜绝缓冲区溢出；
-   - 在修改SDS对象之前会监测SDS对象len属性长度能否满足需求，不能会自动扩展。
-3. 减少内存分配次数
-   - 在拼接等新增空间操作时，不仅会分配所需要的内存，还会额外分配空余内存。
-   - 在删除等减少空间操作时，不会立即释放内存，而是将这部分空余内存计入free空间。
-4. 二进制安全
-   - redis的buf属性保存的是二进制数据而不是字符，因此可以保存任何数据。
-5. 兼容C函数
-   - 最后一个字符为空字符，不计算长度，这样可以直接重用部分C字符串函数。
-
-### 链表
-
-Redis内部链表特性：
-
-1. 双端
-   - 节点带有pre、next指针
-2. 无环
-   - 表头节点的pre和表尾节点的next都是null
-3. 带表头表尾指针
-4. 带长度计数器
-5. 多态
-
-### 字典
-
-redis使用哈希表实现字典，哈希表中节点保存了一个键值对
-
-#### 哈希表
-
-数据结构：
-
-<img src="pic/哈希表数据结构.jpg" alt="avatar" style="zoom: 33%;" /></br>
-<img src="pic/哈希表结构图.jpg" alt="avatar" style="zoom:80%;" /></br>
-table属性指向一个hash表数组节点
-
-#### 哈希表节点
-
-<img src="pic/dictEntry数据结构.jpg" alt="avatar" style="zoom:33%;" /></br>
-
-#### 字典
-
-数据结构：
-
-<img src="pic/字典数据结构.jpg" alt="avatar" style="zoom: 80%;" />
-
-结构图：
-<img src="pic/字典结构图.jpg" alt="avatar" style="zoom: 70%;" /></br>
-
-ht是一个数组，包含了多个哈希表项，一般情况下只用ht[0],ht[1]是在对ht[0]做rehash时使用。
-
-#### hash算法
-
-1. 当键冲突时，使用链地址法（分配到同一索引的节点用链表链接，最新的节点放在链表头部）
-2. rehash过程
-   - 为ht[1]分配空间，空间大小为能够包含两倍ht[0].used属性值的最小2的n次方倍数。
-   - 渐进将ht[0]节点重新计算索引分配到ht[1]
-     - 分多次将ht[0]里面的值rehash到ht[1],每次对字典进行操作时，将rehashidx索引上的键值对rehash到ht[1],直到rehashidx达到最大值变为-1表示完成rehash操作
-     - 渐进rehash过程中，对字典进行新增操作会直接新增到ht[1]，查找、删除、新增会先找ht[0]没找到再找ht[1]
-   - 将ht[1]设置为ht[0]
-
-### 跳跃表
-
-### 整数集合
-
-集合底层实现方式之一，当集合只包含整数类型时使用。
-<img src="pic/整数集合结构图.jpg" alt="avatar" style="zoom: 90%;" />
-
-content数组有3种编码方式，`INSET_ENC_INT16`、`INSET_ENC_INT32`、`INSET_ENC_INT64`，当插入整数大于当前编码方式最大值时需要升级整数集合编码方式，所有contents数组里面的整数都要升级。不支持降级
-
-### 压缩列表
-
-当一个列表键只包含少量列表项且列表项都是小整数或者都是长度比较短的字符串时，redis会使用压缩列表作为列表键的底层实现。
-<img src="pic/压缩列表结构图.jpg" alt="avatar" style="zoom: 90%;" />
-
-<img src="pic/压缩列表节点结构图.jpg" alt="avatar" style="zoom: 90%;" />
-
-- previous_entry_length
-  - 记录了前一个节点的长度，用此实现压缩列表的从表尾向表头遍历
-- encoding
-  - 记录节点的centent属性保存数据的类型以及长度
-- centent
-  - 保存节点值，可以是一个整数或者字节数组
-
-#### 新增、删除引发的列表连锁更新
-
-假设当前节点长度介于250-253之前，现在在这个节点前面新增一个超过254的节点，那么这个节点的previous_entry_length长度将由1字节变为5字节才能存放前面新增的节点，从而此节点长度刚好超过254，后续节点的previous_entry_length也将触发更新。
-
-### 对象
-
-redis中创建一个键值对会同时创建两个对象（键对象和值对象），其中键对象固定为一个字符串对象，值对象可以为常见对象中的一种（字符串对象、列表对象、哈希对象、集合对象等）
+redis中创建一个键值对会同时创建两个对象（键对象和值对象），其中键对象固定为一个字符串对象（区分大小写），值对象可以为常见对象中的一种（字符串对象、列表对象、哈希对象、集合对象、有序集合、bitmap、geo地图坐标、stream流等）
 <img src="pic/对象数据结构.jpg" alt="avatar" style="zoom: 90%;" />
 
 - encoding编码属性
@@ -122,6 +28,8 @@ redis中创建一个键值对会同时创建两个对象（键对象和值对象
 #### 字符串对象
 
 字符串对象有三种编码方式：
+
+浮点型值在redis中保存为字符串类型
 
 1. int
    - 对象为整数值且可以用long类型表示
@@ -181,6 +89,102 @@ redis中创建一个键值对会同时创建两个对象（键对象和值对象
 2. skiplist
    - 使用zet作为实现，一个zset结构由一个字典和跳跃表构成
 
+
+
+### 动态字符串
+
+Redis使用自己的SDS类类型来存储字符串：</br>
+![avatar](pic/SDS结构图.jpg) </br>
+
+与C字符串优点：
+
+1. 相比于C字符串（`O(n)`）更方便的获取字符串长度（`O(1)`）
+2. 杜绝缓冲区溢出
+   - 在修改SDS对象之前会监测SDS对象len属性长度能否满足需求，不能会自动扩展。
+3. 减少内存分配次数
+   - 在拼接等新增空间操作时，不仅会分配所需要的内存，还会额外分配空余内存。
+   - 在删除等减少空间操作时，不会立即释放内存，而是将这部分空余内存计入free空间。
+4. 二进制安全
+   - redis的buf属性保存的是二进制数据而不是字符，因此可以保存任何数据。
+5. 兼容C函数
+   - 最后一个字符为空字符，不计算长度，这样可以直接重用部分C字符串函数。
+
+### 链表
+
+Redis内部链表特性：
+
+1. 双端
+   - 节点带有pre、next指针
+2. 无环
+   - 表头节点的pre和表尾节点的next都是null
+3. 带表头表尾指针
+4. 带长度计数器
+5. 多态
+
+### 字典
+
+redis使用哈希表实现字典，哈希表中节点保存了一个键值对
+
+#### 哈希表
+
+数据结构：
+
+<img src="pic/哈希表数据结构.jpg" alt="avatar" style="zoom: 33%;" /></br>
+<img src="pic/哈希表结构图.jpg" alt="avatar" style="zoom:80%;" /></br>
+table属性指向一个hash表数组节点
+
+#### 哈希表节点
+
+<img src="pic/dictEntry数据结构.jpg" alt="avatar" style="zoom:33%;" /></br>
+
+#### 字典
+
+数据结构：
+
+<img src="pic/字典数据结构.jpg" alt="avatar" style="zoom: 80%;" />
+
+结构图：
+<img src="pic/字典结构图.jpg" alt="avatar" style="zoom: 70%;" /></br>
+
+ht是一个数组，包含了多个哈希表项，一般情况下只用ht[0],ht[1]是在对ht[0]做rehash时使用。
+
+#### hash算法
+
+1. 当键冲突时，使用链地址法（分配到同一索引的节点用链表链接，最新的节点放在链表头部）
+2. rehash过程
+   - 为ht[1]分配空间，空间大小为能够包含两倍ht[0].used属性值的最小2的n次方倍数。
+   - 渐进将ht[0]节点重新计算索引分配到ht[1]
+     - 分多次将ht[0]里面的值rehash到ht[1],每次对字典进行操作时，将rehashidx索引上的键值对rehash到ht[1],直到rehashidx达到最大值变为-1表示完成rehash操作
+     - 渐进rehash过程中，对字典进行**新增操作会直接新增到ht[1]**，**查找、删除、新增会先找ht[0]没找到再找ht[1]**
+   - 将ht[1]设置为ht[0]
+
+### 跳跃表
+
+### 整数集合（intset）
+
+集合底层实现方式之一，当集合只包含整数类型时使用。
+<img src="pic/整数集合结构图.jpg" alt="avatar" style="zoom: 90%;" />
+
+content数组有3种编码方式，`INSET_ENC_INT16`、`INSET_ENC_INT32`、`INSET_ENC_INT64`，当插入整数大于当前编码方式最大值时需要升级整数集合编码方式，所有contents数组里面的整数都要升级。不支持降级
+
+### 压缩列表
+
+当一个列表键只包含少量列表项且列表项都是小整数或者都是长度比较短的字符串时，redis会使用压缩列表作为列表键的底层实现。
+<img src="pic/压缩列表结构图.jpg" alt="avatar" style="zoom: 90%;" />
+
+<img src="pic/压缩列表节点结构图.jpg" alt="avatar" style="zoom: 90%;" />
+
+- previous_entry_length
+  - 记录了前一个节点的长度，用此实现压缩列表的从表尾向表头遍历
+- encoding
+  - 记录节点的centent属性保存数据的类型以及长度
+- centent
+  - 保存节点值，可以是一个整数或者字节数组
+
+#### 新增、删除引发的列表连锁更新
+
+假设当前节点长度介于250-253之前，现在在这个节点前面新增一个超过254的节点，那么这个节点的previous_entry_length长度将由1字节变为5字节才能存放前面新增的节点，从而此节点长度刚好超过254，后续节点的previous_entry_length也将触发更新。
+
 #### 类型检查与多态
 
 redis中有些基础命令可以对所有类型的键执行，有些命令则只能对指定类型键执行，当执行命令时，redis会先判断值对象类型是否支持该命令操作。
@@ -191,7 +195,7 @@ redis中有些基础命令可以对所有类型的键执行，有些命令则只
 
 redisObject结构内有一个redcount属性记录了该对象被引用数量，对象创建和新程序引用时+1，当这个值为0时对象内存会被释放。
 
-redis只能共享包含了整数值的字符串对象（因为在共享对象前redis需要检验对象是否和需要共享的对象相同，保存字符串和多个值的对象如哈希对象等验证时间太长超过cpu限制），redis初始化时内部会自动创建0-9999的整数值对象用以共享。
+redis只能共享包含了整数值的字符串对象（因为在共享对象前redis需要检验对象是否和需要共享的对象相同，保存字符串和多个值的对象如哈希对象等验证时间太长超过cpu限制），**redis初始化时内部会自动创建0-9999的整数值对象用以共享**。
 
 #### 对象空转时长
 
@@ -529,9 +533,9 @@ struct redisServer{
 
 RDB文件保存格式
 
-![image-20200531174531037](F:\笔记\Redis\pic\RDB文件结构.png)
+<img src="pic/RDB文件结构.png" alt="avatar" style="zoom: 70%;" />
 
-![image-20200531174416757](F:\笔记\Redis\pic\RDB文件中数据库结构.png)
+<img src="pic/RDB文件中数据库结构.png" alt="avatar" style="zoom: 70%;" />
 
 #### AOF持久化
 
@@ -547,13 +551,13 @@ AOF文件生成：
 
 AOF文件载入：
 
-![image-20200531180835487](F:\笔记\Redis\pic\AOF文件载入流程.png)
+<img src="pic/AOF文件载入流程.png" alt="avatar" style="zoom: 70%;" />
 
 当运行时间久了AOF文件会很大，之前有的键可能在过程中被删除，这样就可以对AOF文件进行精简重写。重写后的AOF只会包含生成当前数据库状态必须的命令。
 
 重写AOF文件由子进程实现，这样可能导致重写过程中有新命令到达，导致状态不一致。为了避免这种情况使用AOF重写缓冲区来实现，类似上文提到的`aof_buf`缓冲区
 
-![image-20200531181529769](F:\笔记\Redis\pic\AOF重写缓冲区.png)
+<img src="pic/AOF重写缓冲区.png" alt="avatar" style="zoom: 70%;" />
 
 ## 主从复制
 
@@ -564,7 +568,7 @@ AOF文件载入：
 
 ### 旧版复制原理
 
-![image-20200531220741983](F:\笔记\Redis\pic\旧版同步流程.png)
+<img src="pic/旧版同步流程.png" alt="avatar" style="zoom: 70%;" />
 
 然而旧版在服务器断连后需要再重新生成所有键值对的RDB，这样成本太高了，假设只断开3s却要复制所有数据库键值对，很蠢。
 
@@ -572,7 +576,7 @@ AOF文件载入：
 
 为了解决旧版在断连时复制所有键值对的愚蠢，新版新增了一个`PSYNC`（部分重同步）功能，只用同步断连前上一次同步到重连上这段时间的变化。
 
-![image-20200531221455450](F:\笔记\Redis\pic\PSYNC流程.png)
+<img src="pic/PSYNC流程.png" alt="avatar" style="zoom: 70%;" />
 
 新版实现方式：
 
@@ -598,7 +602,7 @@ AOF文件载入：
 
 ## sentinel（哨兵机制）
 
-sentinel用于保证redis的高可用，负责监视主服务器以及其下属从服务器。并在当主服务器出问题时在从服务器中选举出一个作为新的主服务器，且将其设置为其他从服务器的新主服务器。当旧主服务器新上线时会自动称为新主服务器的从服务器。
+sentinel用于保证redis的高可用，负责监视主服务器以及其下属从服务器。并在当主服务器出问题时在从服务器中选举出一个作为新的主服务器，且将其设置为其他从服务器的新主服务器。当旧主服务器新上线时会自动成为新主服务器的从服务器。
 
 #### 启动sentinel过程
 
@@ -608,33 +612,33 @@ sentinel用于保证redis的高可用，负责监视主服务器以及其下属�
    - 初始化`sentinelState`结构
 4. 根据配置文件加载要监视的主服务器
    - 创建`master`字典存储主服务器信息，加载`sentinelRedisInstance`结构存储主服务器实例相关状态。
-   - ![image-20200531230446908](F:\笔记\Redis\pic\sentienlRedisInstance结构.png)
-   - ![image-20200531230233132](F:\笔记\Redis\pic\Sentinl状态结构.png)
+   - <img src="pic/sentienlRedisInstance结构.png" alt="avatar" style="zoom: 70%;" />
+   - <img src="pic/Sentinl状态结构.png" alt="avatar" style="zoom: 70%;" />
 5. 创建与主服务器之间的链接
    - sentinel会向每个主服务器创建两个链接，并成为主服务器的客户端
-   - ![image-20200531231440996](F:\笔记\Redis\pic\sentinel连接图.png)
+   - <img src="pic/sentinel连接图.png" alt="avatar" style="zoom: 70%;" />
 
 #### sentinel获取主从服务器信息
 
 sentinel会每隔10s向主服务器发送INFO命令，此命令会返回主服务器id信息和其下属从服务器信息，sentinel会将从服务器更新存储到对应主服务器的`sentinelRedisInstance`结构的`slaves`属性中，可以看到从服务器的name字段是由其ip和端口组成的：
 
-![image-20200531231832147](F:\笔记\Redis\pic\sentinelRedisInstance中slave结构.png)
+<img src="pic/sentinelRedisInstance中slave结构.png" alt="avatar" style="zoom: 70%;" />
 
 当检测到新的从服务器后sentinel会为其创建`sentinelRedisInstance`结构，并也会每隔10s向其发送INFO信息，并根据INFO信息的返回值更新其信息。其中返回信息包括从服务器的run_id、角色role、优先级、复制偏移量以及其主服务器。
 
-![image-20200531232729501](F:\笔记\Redis\pic\从服务器的sentinelRedisInstance结构.png)
+<img src="pic/从服务器的sentinelRedisInstance结构.png" alt="avatar" style="zoom: 70%;" />
 
 #### sentinel发送和接收主从服务器消息
 
 每隔sentinel会每隔2s向自己结构中存储的主从服务器的`__sentinel__:helle`频道**通过命令链接**发送消息，这消息包含了该sentinel的信息和主从服务器对应的主服务器信息；并且建立**订阅链接接收**服务器的订阅消息。
 
-![image-20200531233556585](F:\笔记\Redis\pic\sentinel链接图.png)
+<img src="pic/sentinel链接图.png" alt="avatar" style="zoom: 70%;" />
 
 因此可以知道一个sentinel会接收到其他sentinel发送给服务器的命令，此时sentinel会在自己的sentinel字典中存储其他sentinel信息，同时会与新发现的sentinel节点建立链接：
 
-![image-20200531233920465](F:\笔记\Redis\pic\sentinel字典结构.png)
+<img src="pic/sentinel字典结构.png" alt="avatar" style="zoom: 70%;" />
 
-![image-20200531235734325](F:\笔记\Redis\pic\sentinel之间的链接.png)
+<img src="pic/sentinel之间的链接.png" alt="avatar" style="zoom: 70%;" />
 
 #### 主客观下线以及sentinel选举
 
@@ -668,13 +672,11 @@ sentinel会以1s一次的频率向创建了连接的主从服务器与sentinel�
 4. 节点B返回PONG消息
 5. 节点A返回PING消息
 
-![image-20200601012654305](F:\笔记\Redis\pic\节点握手过程.png)
+<img src="pic/节点握手过程.png" alt="avatar" style="zoom: 70%;" />
 
-每个节点都会有一个`clusterNode`结构存储自身信息，也会有一个`clusterState`结构存储集群当
+每个节点都会有一个`clusterNode`结构存储自身信息，也会有一个`clusterState`结构存储集群当前信息，其中myself指针指向当前自身节点
 
-前信息，其中myself指针指向当前自身节点
-
-![image-20200601013208501](F:\笔记\Redis\pic\node节点信息存储结构.png)
+<img src="pic/node节点信息存储结构.png" alt="avatar" style="zoom: 70%;" />
 
 ### 槽指派
 
@@ -696,17 +698,17 @@ struct clusterNode{
 
 此外，`clusterState`结构中还有专门的字段slots数组统一存储节点槽信息，对应槽指针指向负责节点，这样程序查询对应槽被指派的节点时间复杂度变成O(1)：
 
-![image-20200601020051234](F:\笔记\Redis\pic\clusterState中的slots数组.png)
+<img src="pic/clusterState中的slots数组.png" alt="avatar" style="zoom: 70%;" />
 
 所以当执行槽指派命令时，需要同时更改`clusterState.slots`和`clusterNode.slots`两处：
 
-<img src="F:\笔记\Redis\pic\image-20200601020509854.png" alt="image-20200601020509854" style="zoom:80%;" />
+<img src="pic/image-20200601020509854.png" alt="avatar" style="zoom: 70%;" />
 
 ### 集群下命令执行
 
 数据库不同的槽被分配到各个节点后，执行命令过程是怎样的呢？
 
-<img src="F:\笔记\Redis\pic\集群命令执行流程.png" alt="image-20200601121146528" style="zoom:80%;" />
+<img src="pic/集群命令执行流程.png" alt="avatar" style="zoom: 70%;" />
 
 1. 首先接收到命令通过CRC(16)计算key的CRC-16效验和，和16383进行与操作得出槽号。
 2. 计算出key的槽号后通过查询节点的`clusterState.slots`数组对应槽元素属性是否指向自身的`clusterNode`判断槽号是否由自己负责
@@ -716,16 +718,16 @@ struct clusterNode{
 
 redis可以对槽重分配：
 
-![image-20200601131728207](F:\笔记\Redis\pic\重新分片流程.png)
+<img src="pic/重新分片流程.png" alt="avatar" style="zoom: 70%;" />
 
 但是此方法存在一个问题：如果正在迁移过程中客户端请求正在迁移的键会怎么办呢？迁入节点在`clusterState`结构中使用`importing_slots_from`属性来存储正在迁移过来的槽信息，迁出节点用`migrating_slots_to`属性存储正在迁出的槽信息
 
-<img src="F:\笔记\Redis\pic\importing_slots_from.png" alt="image-20200601132717013" style="zoom: 67%;" />
+<img src="pic/importing_slots_from.png" alt="avatar" style="zoom: 70%;" />
 
-<img src="F:\笔记\Redis\pic\ACK错误判断流程.png" alt="image-20200601132431687" style="zoom:80%;" />
+<img src="pic/ACK错误判断流程.png" alt="avatar" style="zoom: 70%;" />
 
 当节点收到key请求，而且槽也与本节点对应。但是并没有在数据库里面找到对应key的话，会去检查`clusterState.migrating_slots_to`属性是否正在迁出相应槽，如果是那么会发送一个**ACK错误**（类似MOVE的重定向错误），然后客户端向新的节点发送ASKING命令，此命令主要是为了打开服务器的`REDIS_ASKING`标识，只有打开了这个标识正在迁入的节点才会去检查正在迁入的槽信息。
 
-![image-20200601133153377](F:\笔记\Redis\pic\ACK重定向请求流程.png)
+<img src="pic/ACK重定向请求流程.png" alt="avatar" style="zoom: 70%;" />
 
-![image-20200601133236904](F:\笔记\Redis\pic\ACKING命令判断流程.png)
+<img src="pic/ACKING命令判断流程.png" alt="avatar" style="zoom: 70%;" />
