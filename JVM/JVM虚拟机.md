@@ -65,15 +65,15 @@ typora-copy-images-to: pic
        ```
    
        ```java
-    // 类基本信息区域
+        // 类基本信息区域
        Classfile /D:/java/xczx_server/xc-framework-parent/test-rabbitmq-producter/src/main/java/com/xuecheng/test/rabbitmq/HelloWorld.class
-      Last modified 2020-6-7; size 453 bytes
+        Last modified 2020-6-7; size 453 bytes
          MD5 checksum 0d9276e177a9044c9da40452da91d7d5
-      Compiled from "HelloWorld.java"
+        Compiled from "HelloWorld.java"
        public class com.xuecheng.test.rabbitmq.HelloWorld
          minor version: 0
          major version: 52
-      flags: ACC_PUBLIC, ACC_SUPER
+        flags: ACC_PUBLIC, ACC_SUPER
          
         // 常量池区域
            Constant pool:
@@ -150,7 +150,7 @@ typora-copy-images-to: pic
    
      - **懒加载**：代码里面的新的字符串并不会在编译时立即加载到StringTable，而是在代码运行到那一行发现StringTable里面没有找到对应字符串然后再加进去
    
-     - java1.8中s.intern()方法可以将堆中的对象放入StringTable，并返回StringTable中这个对象，如果StringTable中已经存在相等对象则不放入直接返回StringTable中的对象。而在java1.6中则是先复制一份对象然后再放入StringTable中
+     - java1.8中s.intern()方法可以将堆中的对象放入StringTable，并返回StringTable中这个对象，如果StringTable中已经存在相等对象则不放入直接返回StringTable中的对象。而在java1.6中则是先复制一份对象然后再放w入StringTable中
    
      - 面试题：
    
@@ -376,7 +376,7 @@ jvm中年轻代和老年代因为对象平均生存时间不同，所以采用�
 
 #### CMS收集器
 
-也叫**响应优先**收集器，这里的响应优先指的是一次GC总时长越短越好。基于标记-清除算法，总共有4个阶段：
+也叫**响应优先**收集器，这里的响应优先指的是一次**GC总时长越短**越好。基于标记-清除算法，总共有4个阶段：
 
 - 初始标记
   - 标记GC Roots所关联的对象
@@ -639,13 +639,37 @@ Rmemebered Set（记忆集）
 
 1. Minor GC和Full GC都很频繁：
 
-   > 有可能是因为新生代空间较小首先引起频繁Minor GC，这种情况下survivor区不够了晋升条件会放宽，更多短命对象进入老年代从而引发频繁Full GC
+   > 有可能是因为**新生代空间较小**首先引起频繁Minor GC，这种情况下survivor区不够了晋升条件会放宽，更多短命对象进入老年代从而引发频繁Full GC。老年代可以设置为活跃对象的2-3倍空间，其他都分给新生代。
+   >
+   > 如果发现老年代回收的比例非常小，如从 80% 只回收到了 60%，说明我们大部分对象都是存活的，Old 区的空间可以适当调大些。
+   >
+   > 单次Minor GC时间由以下两部分组成：T1（扫描新生代）和 T2（复制存活对象到Survivor区）。新生代扩容后，增加了T1，减少了T2，单次**Minor GC时间更多取决于GC后存活对象的数量，而非Eden区的大小**。因此如果堆中短期对象很多，那么**扩容新生代，单次Minor GC时间不会显著增加**
 
-2. CMS在请求高峰期发生Full GC，单词暂停时间较长
+2. CMS在请求高峰期发生Full GC，单次暂停时间较长
 
    > 之前说到过单词暂停时间较长可以去打印GC日志查看每个阶段时长信息，如果是重新标记阶段时间过长，那么之前说过重新标记阶段会扫描所有堆内存的对象，可以在重新标记之前执行以下minor GC清除新生代垃圾从而降低这个堆内存扫描时间。
 
-3. 
+3. 单次Full GC耗时长
+
+   > CMS 在回收的过程中，**STW 的阶段主要是 Init Mark 和 Final Remark 这两个阶段**，也是导致 CMS Old GC 最多的原因，另外有些情况就是在 STW 前等待 Mutator 的线程到达 SafePoint 也会导致时间过长，但这种情况较少，我们在此处主要讨论前者。
+   >
+   > 为了降低Remark时间，由于跨代引用的存在，CMS在Remark阶段必须扫描整个堆，同时为了避免扫描时新生代有很多对象，增加了可中断的预清理阶段用来等待Minor GC的发生。只是该阶段有时间限制，如果超时等不到Minor GC，Remark时新生代仍然有很多对象，我们的调优策略是，通过参数强制Remark前进行一次Minor GC，从而降低Remark阶段的时间。
+
+4. STW Full GC
+
+   > 1. perm空间不足
+   >
+   >    通过把-XX:PermSize参数和-XX:MaxPermSize设置成一样，强制虚拟机在启动的时候就把永久代的容量固定下来，避免运行时自动扩容。 2. CMS默认情况下不会回收Perm区，通过参数CMSPermGenSweepingEnabled、CMSClassUnloadingEnabled ，可以让CMS在Perm区容量不足时对其回收。
+   >
+   > 2. CMS GC时出现promotion failed和concurrent mode failure（concurrent mode failure发生的原因一般是CMS正在进行，但是由于老年代空间不足，需要尽快回收老年代里面的不再被使用的对象，这时停止所有的线程，同时终止CMS，直接进行Serial Old GC）
+   >
+   > 3. 统计得到的Young GC晋升到老年代的平均大小大于老年代的剩余空间
+
+5. 动态扩容引起的空间震荡
+
+   > 服务**刚刚启动时 GC 次数较多**，最大空间剩余很多但是依然发生 GC，GC Cause 一般为 Allocation Failure，且在 GC 日志中会观察到经历一次 GC ，堆内各个空间的大小会被调整。
+   >
+   > 在 JVM 的参数中 `-Xms` 和 `-Xmx` 设置的不一致，在初始化时只会初始 `-Xms` 大小的空间存储信息，每当空间不够用时再向操作系统申请，这样的话必然要进行一次 GC。剩余空间过大也会自动进行缩容操作
 
 ### CPU占用过高定位
 
